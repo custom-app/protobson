@@ -46,10 +46,12 @@ func WithFieldNamerByJsonName() Option {
 type FieldNamerByNumber struct {
 }
 
+// FieldDescriptorToFieldName is implementation of FieldNamer method
 func (f *FieldNamerByNumber) FieldDescriptorToFieldName(fd protoreflect.FieldDescriptor) string {
 	return fmt.Sprintf("%v%v", fieldPrefix, fd.Number())
 }
 
+// FieldNameToFieldDescriptor is implementation of FieldNamer method
 func (f *FieldNamerByNumber) FieldNameToFieldDescriptor(fd protoreflect.FieldDescriptors,
 	name string) (protoreflect.FieldDescriptor, error) {
 	if !strings.HasPrefix(name, fieldPrefix) {
@@ -67,10 +69,12 @@ func (f *FieldNamerByNumber) FieldNameToFieldDescriptor(fd protoreflect.FieldDes
 type FieldNamerByName struct {
 }
 
+// FieldDescriptorToFieldName is implementation of FieldNamer method
 func (f *FieldNamerByName) FieldDescriptorToFieldName(fd protoreflect.FieldDescriptor) string {
 	return string(fd.Name())
 }
 
+// FieldNameToFieldDescriptor is implementation of FieldNamer method
 func (f *FieldNamerByName) FieldNameToFieldDescriptor(fd protoreflect.FieldDescriptors,
 	name string) (protoreflect.FieldDescriptor, error) {
 	return fd.ByName(protoreflect.Name(name)), nil
@@ -80,10 +84,12 @@ func (f *FieldNamerByName) FieldNameToFieldDescriptor(fd protoreflect.FieldDescr
 type FieldNamerByJsonName struct {
 }
 
+// FieldDescriptorToFieldName is implementation of FieldNamer method
 func (f *FieldNamerByJsonName) FieldDescriptorToFieldName(fd protoreflect.FieldDescriptor) string {
 	return fd.JSONName()
 }
 
+// FieldNameToFieldDescriptor is implementation of FieldNamer method
 func (f *FieldNamerByJsonName) FieldNameToFieldDescriptor(fd protoreflect.FieldDescriptors,
 	name string) (protoreflect.FieldDescriptor, error) {
 	return fd.ByJSONName(name), nil

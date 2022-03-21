@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	// ErrNotImplementingProto occurs when value for decoding is not implementing proto.Message interface
 	ErrNotImplementingProto = errors.New("value not implementing proto interface")
 )
 
@@ -58,6 +59,9 @@ func (pc *protobufCodec) DecodeValue(dctx bsoncodec.DecodeContext, vr bsonrw.Val
 			return err
 		}
 		fd, err := pc.fieldNamer.FieldNameToFieldDescriptor(msg.Descriptor().Fields(), name)
+		if err != nil {
+			return err
+		}
 		// Skip elements representing a field that is not part of the Protobuf message.
 		if fd == nil {
 			if err = vr.Skip(); err != nil {
