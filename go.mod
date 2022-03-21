@@ -1,4 +1,4 @@
-module github.com/ThePib/protobson
+module github.com/custom-app/protobson
 
 go 1.14
 

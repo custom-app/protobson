@@ -1,33 +1,48 @@
 package protobson
 
 import (
-	"fmt"
-	"reflect"
-	"strconv"
-	"strings"
-
+	"errors"
 	"go.mongodb.org/mongo-driver/bson/bsoncodec"
 	"go.mongodb.org/mongo-driver/bson/bsonrw"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
+	"reflect"
 )
 
-const (
-	fieldPrefix = "pb_field_"
+var (
+	ErrNotImplementingProto = errors.New("value not implementing proto interface")
 )
 
-type protobufCodec struct{}
+// Option - functional option for protobufCodec
+type Option func(*protobufCodec)
+
+type protobufCodec struct {
+	fieldNamer FieldNamer
+}
 
 // NewCodec returns a new instance of a BSON codec for Protobuf messages.
 // Messages are encoded using field numbers as document keys,
 // so that stored messages can survive field renames.
-func NewCodec() bsoncodec.ValueCodec {
-	return &protobufCodec{}
+//
+// If no FieldNamer option passed, FieldNamerByNumber will be used as default
+func NewCodec(opts ...Option) bsoncodec.ValueCodec {
+	res := &protobufCodec{}
+	for _, opt := range opts {
+		opt(res)
+	}
+	if res.fieldNamer == nil {
+		res.fieldNamer = &FieldNamerByNumber{}
+	}
+	return res
 }
 
+// DecodeValue - ValueDecoder implementation
 func (pc *protobufCodec) DecodeValue(dctx bsoncodec.DecodeContext, vr bsonrw.ValueReader, val reflect.Value) error {
-	if val.IsNil() {
+	if !val.Type().Implements(reflect.TypeOf((*proto.Message)(nil)).Elem()) {
+		return ErrNotImplementingProto
+	}
+	if val.Type().Kind() == reflect.Ptr && val.IsNil() {
 		val.Set(reflect.New(val.Type().Elem()))
 	}
 
@@ -42,18 +57,7 @@ func (pc *protobufCodec) DecodeValue(dctx bsoncodec.DecodeContext, vr bsonrw.Val
 		if err != nil {
 			return err
 		}
-		if !strings.HasPrefix(name, fieldPrefix) {
-			if err = vr.Skip(); err != nil {
-				return err
-			}
-			continue
-		}
-		n, err := strconv.Atoi(elementNameToFieldNumber(name))
-		if err != nil {
-			return err
-		}
-		num := protoreflect.FieldNumber(n)
-		fd := msg.Descriptor().Fields().ByNumber(num)
+		fd, err := pc.fieldNamer.FieldNameToFieldDescriptor(msg.Descriptor().Fields(), name)
 		// Skip elements representing a field that is not part of the Protobuf message.
 		if fd == nil {
 			if err = vr.Skip(); err != nil {
@@ -90,6 +94,7 @@ func (pc *protobufCodec) DecodeValue(dctx bsoncodec.DecodeContext, vr bsonrw.Val
 	return nil
 }
 
+// EncodeValue - ValueEncoder implementation
 func (pc *protobufCodec) EncodeValue(ectx bsoncodec.EncodeContext, vw bsonrw.ValueWriter, val reflect.Value) error {
 	protoMsg := val.Interface().(proto.Message)
 	for val.Kind() != reflect.Struct {
@@ -102,7 +107,7 @@ func (pc *protobufCodec) EncodeValue(ectx bsoncodec.EncodeContext, vw bsonrw.Val
 	}
 
 	protoMsg.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, fv protoreflect.Value) bool {
-		if err = encodeField(ectx, dw, fd, &fv); err != nil {
+		if err = pc.encodeField(ectx, dw, fd, &fv); err != nil {
 			return false
 		}
 		return true
@@ -114,12 +119,8 @@ func (pc *protobufCodec) EncodeValue(ectx bsoncodec.EncodeContext, vw bsonrw.Val
 	return dw.WriteDocumentEnd()
 }
 
-// FieldNumberToElementName returns the BSON-encoded field name corresponding to Protobuf message field number.
-func FieldNumberToElementName(num protoreflect.FieldNumber) string {
-	return fmt.Sprintf("%v%v", fieldPrefix, num)
-}
-
-func decodeField(dctx bsoncodec.DecodeContext, vr bsonrw.ValueReader, fd protoreflect.FieldDescriptor, dst *protoreflect.Value, emul bool) error {
+func decodeField(dctx bsoncodec.DecodeContext, vr bsonrw.ValueReader, fd protoreflect.FieldDescriptor,
+	dst *protoreflect.Value, emul bool) error {
 	var typ reflect.Type
 	var lv protoreflect.List
 	var mv protoreflect.Map
@@ -137,7 +138,8 @@ func decodeField(dctx bsoncodec.DecodeContext, vr bsonrw.ValueReader, fd protore
 		mv = dst.Map()
 		msg := dynamicpb.NewMessageType(fd.MapKey().ContainingMessage()).Zero()
 		mek, mev := msg.NewField(fd.MapKey()), mv.NewValue()
-		mekt, mevt := reflectTypeFromProtoReflectValue(fd.MapKey(), &mek), reflectTypeFromProtoReflectValue(fd.MapValue(), &mev)
+		mekt, mevt := reflectTypeFromProtoReflectValue(fd.MapKey(), &mek),
+			reflectTypeFromProtoReflectValue(fd.MapValue(), &mev)
 		typ = reflect.MapOf(mekt, mevt)
 	} else if emul {
 		// Decoding a single-value field with emulation is done as follows:
@@ -191,19 +193,16 @@ func decodeField(dctx bsoncodec.DecodeContext, vr bsonrw.ValueReader, fd protore
 	return nil
 }
 
-func elementNameToFieldNumber(name string) string {
-	return strings.Replace(name, fieldPrefix, "", 1)
-}
-
-func encodeField(ectx bsoncodec.EncodeContext, dw bsonrw.DocumentWriter, fd protoreflect.FieldDescriptor, src *protoreflect.Value) error {
+func (pc *protobufCodec) encodeField(ectx bsoncodec.EncodeContext, dw bsonrw.DocumentWriter,
+	fd protoreflect.FieldDescriptor, src *protoreflect.Value) error {
 	var val reflect.Value
 	if fd.IsList() {
 		lv := src.List()
-		len := lv.Len()
+		vLen := lv.Len()
 		lev := lv.NewElement()
 		typ := reflect.SliceOf(reflectTypeFromProtoReflectValue(fd, &lev))
-		sv := reflect.MakeSlice(typ, len, len)
-		for i := 0; i < len; i++ {
+		sv := reflect.MakeSlice(typ, vLen, vLen)
+		for i := 0; i < vLen; i++ {
 			lev := lv.Get(i)
 			sv.Index(i).Set(reflectValueFromProtoReflectValue(fd, &lev))
 		}
@@ -212,7 +211,8 @@ func encodeField(ectx bsoncodec.EncodeContext, dw bsonrw.DocumentWriter, fd prot
 		pmap := src.Map()
 		msg := dynamicpb.NewMessageType(fd.MapKey().ContainingMessage()).Zero()
 		mek, mev := msg.NewField(fd.MapKey()), pmap.NewValue()
-		mekt, mevt := reflectTypeFromProtoReflectValue(fd.MapKey(), &mek), reflectTypeFromProtoReflectValue(fd.MapValue(), &mev)
+		mekt, mevt := reflectTypeFromProtoReflectValue(fd.MapKey(), &mek),
+			reflectTypeFromProtoReflectValue(fd.MapValue(), &mev)
 		mv := reflect.MakeMapWithSize(reflect.MapOf(mekt, mevt), pmap.Len())
 		pmap.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
 			kv := k.Value()
@@ -231,7 +231,7 @@ func encodeField(ectx bsoncodec.EncodeContext, dw bsonrw.DocumentWriter, fd prot
 		return err
 	}
 
-	vw, err := dw.WriteDocumentElement(FieldNumberToElementName(fd.Number()))
+	vw, err := dw.WriteDocumentElement(pc.fieldNamer.FieldDescriptorToFieldName(fd))
 	if err != nil {
 		return err
 	}

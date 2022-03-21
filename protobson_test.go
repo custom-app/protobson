@@ -1,10 +1,11 @@
-package protobson
+package protobson_test
 
 import (
+	"github.com/custom-app/protobson"
 	"reflect"
 	"testing"
 
-	pb_test "github.com/ThePib/protobson/test"
+	pbtest "github.com/custom-app/protobson/test"
 	"go.mongodb.org/mongo-driver/bson"
 	"google.golang.org/protobuf/proto"
 )
@@ -17,53 +18,53 @@ var (
 	}{
 		{
 			name: "simple message",
-			pb: &pb_test.SimpleMessage{
+			pb: &pbtest.SimpleMessage{
 				StringField: "foo",
 				Int32Field:  32525,
 				Int64Field:  1531541553141312315,
 				FloatField:  21541.3242,
 				DoubleField: 21535215136361617136.543858,
 				BoolField:   true,
-				EnumField:   pb_test.Enum_VAL_2,
+				EnumField:   pbtest.Enum_VAL_2,
 			},
 			equivalentPbs: []proto.Message{
-				&pb_test.RepeatedFieldMessage{
+				&pbtest.RepeatedFieldMessage{
 					StringField: []string{"foo"},
 					Int32Field:  []int32{32525},
 					Int64Field:  []int64{1531541553141312315},
 					FloatField:  []float32{21541.3242},
 					DoubleField: []float64{21535215136361617136.543858},
 					BoolField:   []bool{true},
-					EnumField:   []pb_test.Enum{pb_test.Enum_VAL_2},
+					EnumField:   []pbtest.Enum{pbtest.Enum_VAL_2},
 				},
 			},
 		},
 		{
 			name: "message with repeated fields",
-			pb: &pb_test.RepeatedFieldMessage{
+			pb: &pbtest.RepeatedFieldMessage{
 				StringField: []string{"foo", "bar"},
 				Int32Field:  []int32{32525, 1958, 435},
 				Int64Field:  []int64{1531541553141312315, 13512516266},
 				FloatField:  []float32{21541.3242, 634214.2233, 3435.322},
 				DoubleField: []float64{21535215136361617136.543858, 213143343.76767},
 				BoolField:   []bool{true, false, true, true},
-				EnumField:   []pb_test.Enum{pb_test.Enum_VAL_2, pb_test.Enum_VAL_1},
+				EnumField:   []pbtest.Enum{pbtest.Enum_VAL_2, pbtest.Enum_VAL_1},
 			},
 			equivalentPbs: []proto.Message{
-				&pb_test.SimpleMessage{
+				&pbtest.SimpleMessage{
 					StringField: "bar",
 					Int32Field:  435,
 					Int64Field:  13512516266,
 					FloatField:  3435.322,
 					DoubleField: 213143343.76767,
 					BoolField:   true,
-					EnumField:   pb_test.Enum_VAL_1,
+					EnumField:   pbtest.Enum_VAL_1,
 				},
 			},
 		},
 		{
 			name: "message with map",
-			pb: &pb_test.MessageWithMap{
+			pb: &pbtest.MessageWithMap{
 				StringField: "foo",
 				MapField:    map[int32]string{123: "bar"},
 			},
@@ -71,9 +72,9 @@ var (
 		},
 		{
 			name: "message with submessage map",
-			pb: &pb_test.MessageWithSubMessageMap{
+			pb: &pbtest.MessageWithSubMessageMap{
 				StringField: "foo",
-				MapField: map[int32]*pb_test.SimpleMessage{
+				MapField: map[int32]*pbtest.SimpleMessage{
 					4545: {
 						StringField: "foo",
 						Int32Field:  32525,
@@ -81,7 +82,7 @@ var (
 						FloatField:  21541.3242,
 						DoubleField: 21535215136361617136.543858,
 						BoolField:   true,
-						EnumField:   pb_test.Enum_VAL_2,
+						EnumField:   pbtest.Enum_VAL_2,
 					},
 				},
 			},
@@ -89,22 +90,22 @@ var (
 		},
 		{
 			name: "message with submessage",
-			pb: &pb_test.MessageWithSubMessage{
+			pb: &pbtest.MessageWithSubMessage{
 				StringField: "baz",
-				SimpleMessage: &pb_test.SimpleMessage{
+				SimpleMessage: &pbtest.SimpleMessage{
 					StringField: "foo",
 					Int32Field:  32525,
 					Int64Field:  1531541553141312315,
 					FloatField:  21541.3242,
 					DoubleField: 21535215136361617136.543858,
 					BoolField:   true,
-					EnumField:   pb_test.Enum_VAL_2,
+					EnumField:   pbtest.Enum_VAL_2,
 				},
 			},
 			equivalentPbs: []proto.Message{
-				&pb_test.MessageWithRepeatedSubMessage{
+				&pbtest.MessageWithRepeatedSubMessage{
 					StringField: "baz",
-					SimpleMessage: []*pb_test.SimpleMessage{
+					SimpleMessage: []*pbtest.SimpleMessage{
 						{
 							StringField: "foo",
 							Int32Field:  32525,
@@ -112,7 +113,7 @@ var (
 							FloatField:  21541.3242,
 							DoubleField: 21535215136361617136.543858,
 							BoolField:   true,
-							EnumField:   pb_test.Enum_VAL_2,
+							EnumField:   pbtest.Enum_VAL_2,
 						},
 					},
 				},
@@ -120,9 +121,9 @@ var (
 		},
 		{
 			name: "message with repeated submessage",
-			pb: &pb_test.MessageWithRepeatedSubMessage{
+			pb: &pbtest.MessageWithRepeatedSubMessage{
 				StringField: "baz",
-				SimpleMessage: []*pb_test.SimpleMessage{
+				SimpleMessage: []*pbtest.SimpleMessage{
 					{
 						StringField: "foo",
 						Int32Field:  32525,
@@ -130,7 +131,7 @@ var (
 						FloatField:  21541.3242,
 						DoubleField: 21535215136361617136.543858,
 						BoolField:   true,
-						EnumField:   pb_test.Enum_VAL_2,
+						EnumField:   pbtest.Enum_VAL_2,
 					},
 					{
 						StringField: "qux",
@@ -140,9 +141,9 @@ var (
 				},
 			},
 			equivalentPbs: []proto.Message{
-				&pb_test.MessageWithSubMessage{
+				&pbtest.MessageWithSubMessage{
 					StringField: "baz",
-					SimpleMessage: &pb_test.SimpleMessage{
+					SimpleMessage: &pbtest.SimpleMessage{
 						StringField: "qux",
 						Int32Field:  22,
 						Int64Field:  1531541553141312315,
@@ -154,16 +155,16 @@ var (
 						// of the 'SimpleMessage' slice is deserialized, that deserialized value contains no value for 'BoolField', and thus
 						// this field retains the value that was set in the first element of that slice.
 						BoolField: true,
-						EnumField: pb_test.Enum_VAL_2,
+						EnumField: pbtest.Enum_VAL_2,
 					},
 				},
 			},
 		},
 		{
 			name: "message with oneof",
-			pb: &pb_test.MessageWithOneof{
+			pb: &pbtest.MessageWithOneof{
 				StringField: "baz",
-				OneofField:  &pb_test.MessageWithOneof_Int32OneofField{Int32OneofField: 3132},
+				OneofField:  &pbtest.MessageWithOneof_Int32OneofField{Int32OneofField: 3132},
 			},
 			equivalentPbs: []proto.Message{},
 		},
@@ -171,7 +172,7 @@ var (
 )
 
 func TestMarshalUnmarshal(t *testing.T) {
-	codec := NewCodec()
+	codec := protobson.NewCodec()
 	typ := reflect.TypeOf((*proto.Message)(nil)).Elem()
 	rb := bson.NewRegistryBuilder()
 	reg := rb.RegisterHookDecoder(typ, codec).RegisterHookEncoder(typ, codec).Build()
@@ -195,7 +196,7 @@ func TestMarshalUnmarshal(t *testing.T) {
 }
 
 func TestMarshalUnmarshalWithPointers(t *testing.T) {
-	codec := NewCodec()
+	codec := protobson.NewCodec()
 	typ := reflect.TypeOf((*proto.Message)(nil)).Elem()
 	rb := bson.NewRegistryBuilder()
 	reg := rb.RegisterHookDecoder(typ, codec).RegisterHookEncoder(typ, codec).Build()
